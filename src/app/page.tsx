@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 
-// lucide-react (fixed names)
 import {
   Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
   ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
@@ -184,9 +183,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Overview + Compare */}
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-6">
-        {/* LEFT: Run Overview + Compare */}
+        {/* LEFT: Run Overview */}
         <div className="col-span-12 lg:col-span-5 space-y-4">
           <Card>
             <CardHeader>
@@ -205,6 +203,7 @@ export default function App() {
                 </Select>
                 <Button variant="outline" size="sm"><ListFilter className="h-4 w-4 mr-1" /> Filters</Button>
               </div>
+
               <div className="space-y-2">
                 {trials.map((t, idx) => (
                   <div key={t.id} className={`grid grid-cols-12 items-center gap-2 p-2 rounded-xl border ${selectedTrial?.id === t.id ? "bg-neutral-100" : "bg-white"}`}>
@@ -234,6 +233,36 @@ export default function App() {
               </div>
             </CardContent>
             <CardFooter className="text-xs text-neutral-500">Budget: ${SAMPLE_RUN.budgetUSD}</CardFooter>
+          </Card>
+
+          {/* Compare Panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><GitCompare className="h-5 w-5" /> Compare</CardTitle>
+              <CardDescription>Select up to 3 trials to compare side-by-side.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {compare.length === 0 && <div className="text-sm text-neutral-500">No trials selected.</div>}
+              {compare.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {compare.map((id) => {
+                    const t = trials.find((x) => x.id === id)!;
+                    return (
+                      <Card key={id} className="border-neutral-200">
+                        <CardHeader>
+                          <CardTitle className="text-base">{t.model} <Badge variant="outline" className="ml-2">{t.agent}</Badge></CardTitle>
+                          <CardDescription>AIPI {t.aipi} • ${t.cost.toFixed(2)} • {t.latencyMs}ms</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xs text-neutral-500 mb-2">Top artifact</div>
+                          <div className="p-3 rounded-lg bg-neutral-100 text-sm">{t.artifacts[0].content}</div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
           </Card>
         </div>
 
@@ -265,6 +294,85 @@ export default function App() {
                       <Badge variant="secondary" className="bg-emerald-100 text-emerald-900 border border-emerald-200"><ShieldCheck className="h-3 w-3 mr-1" /> None</Badge>
                     )}
                   </div>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Artifacts */}
+              <div>
+                <div className="text-xs text-neutral-500 mb-2">Artifacts</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {selectedTrial.artifacts.map((a, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <CardTitle className="text-sm">{a.label}</CardTitle>
+                        <CardDescription>{a.type.toUpperCase()}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="p-3 rounded-lg bg-neutral-100 text-sm leading-relaxed">{a.content}</div>
+                      </CardContent>
+                      <CardFooter className="justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(a.content)}>
+                          <Copy className="h-4 w-4 mr-1" /> Copy
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <Wand2 className="h-4 w-4 mr-1" /> Refine
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Scorecard + Decision */}
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-12 lg:col-span-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Scorecard (Human)</CardTitle>
+                      <CardDescription>1–5 per metric</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {(Object.keys(DEFAULT_WEIGHTS) as MetricKey[]).map((k) => (
+                        <div key={k} className="flex items-center justify-between gap-3">
+                          <div className="text-sm w-40">{RUBRIC_LABEL[k]}</div>
+                          <div className="font-mono">{selectedTrial.human[k]}</div>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Button key={n} size="icon" variant={selectedTrial.human[k] === n ? "default" : "outline"} className="h-7 w-7">
+                                {n}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                    <CardFooter className="justify-between">
+                      <div className="text-sm">Composite AIPI</div>
+                      <div className="font-semibold">{computeAIPI(weights, selectedTrial.human)}</div>
+                    </CardFooter>
+                  </Card>
+                </div>
+                <div className="col-span-12 lg:col-span-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Decision & Rationale</CardTitle>
+                      <CardDescription>Record the outcome of this trial.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Strengths: brand voice, inclusive language, clear CTA.</div>
+                        <div className="flex items-center gap-2"><XCircle className="h-4 w-4 text-rose-600" /> Weaknesses: originality moderate; try exploratory prompt v2.</div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="justify-end gap-2">
+                      <Button variant="outline">Save Notes</Button>
+                      <Button>Mark as Winner</Button>
+                    </CardFooter>
+                  </Card>
                 </div>
               </div>
             </CardContent>
