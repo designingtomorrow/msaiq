@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -17,20 +15,18 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
-// lucide-react (icon names verified)
+// lucide-react (fixed names)
 import {
-  Download, Filter, Plus, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
-  ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle, Wand2, CheckCircle2,
-  XCircle, Rocket,
+  Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
+  ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
+  Wand2, CheckCircle2, XCircle, Rocket,
 } from "lucide-react";
 
-// --------- Mock Data (expand/adjust anytime) ----------
+// --------- Mock Data ----------
 const DEFAULT_WEIGHTS = {
-  fit: 0.15, clarity: 0.10, originality: 0.15, feasibility: 0.10, safety: 0.10,
-  factuality: 0.10, ux: 0.10, brand: 0.10, inclusion: 0.10,
+  fit: 0.15, clarity: 0.10, originality: 0.15, feasibility: 0.10,
+  safety: 0.10, factuality: 0.10, ux: 0.10, brand: 0.10, inclusion: 0.10,
 };
 type MetricKey = keyof typeof DEFAULT_WEIGHTS;
 
@@ -63,8 +59,7 @@ type Trial = {
 const SAMPLE_RUN = {
   id: "run_001",
   title: "Email Hero Concepts — Fall Promo",
-  intent:
-    "Generate 3 hero concepts for the Fall campaign with strong brand tone and accessible CTAs.",
+  intent: "Generate 3 hero concepts for the Fall campaign with strong brand tone and accessible CTAs.",
   budgetUSD: 500,
   trials: [
     {
@@ -127,36 +122,44 @@ function computeAIPI(weights: Record<MetricKey, number>, human: Record<MetricKey
   (Object.keys(weights) as MetricKey[]).forEach((k) => {
     total += weights[k] * ((human[k] ?? 0) / 5);
   });
-  return +(total * 100).toFixed(1); // 0–100
+  return +(total * 100).toFixed(1);
 }
 
 function riskBadge(key: string) {
   if (key === "minor_tone_off")
     return (
-      <Badge variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">
+      <Badge key={key} variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">
         <AlertTriangle className="mr-1 h-3 w-3" /> Tone
       </Badge>
     );
   if (key === "hallucination_low")
     return (
-      <Badge variant="secondary" className="bg-rose-100 text-rose-900 border border-rose-200">
+      <Badge key={key} variant="secondary" className="bg-rose-100 text-rose-900 border border-rose-200">
         <AlertTriangle className="mr-1 h-3 w-3" /> Facts
       </Badge>
     );
-  return <Badge>Risk</Badge>;
+  return <Badge key={key}>Risk</Badge>;
 }
 
 // --------- Page ----------
+const SORT_OPTIONS = ["aipi", "cost", "latency"] as const;
+type SortKey = typeof SORT_OPTIONS[number];
+function isSortKey(v: string): v is SortKey { return SORT_OPTIONS.includes(v as SortKey); }
+
 export default function App() {
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
-  const [sortKey, setSortKey] = useState<"aipi" | "cost" | "latency">("aipi");
+  const [sortKey, setSortKey] = useState<SortKey>("aipi");
   const [selectedTrialId, setSelectedTrialId] = useState<string | null>(SAMPLE_RUN.trials[0].id);
   const [compare, setCompare] = useState<string[]>([]);
 
   const trials = useMemo(() => {
     return SAMPLE_RUN.trials
       .map((t) => ({ ...t, aipi: computeAIPI(weights, t.human) }))
-      .sort((a, b) => (sortKey === "aipi" ? b.aipi - a.aipi : sortKey === "cost" ? a.cost - b.cost : a.latencyMs - b.latencyMs));
+      .sort((a, b) =>
+        sortKey === "aipi" ? b.aipi - a.aipi :
+        sortKey === "cost" ? a.cost - b.cost :
+        a.latencyMs - b.latencyMs
+      );
   }, [weights, sortKey]);
 
   const selectedTrial = trials.find((t) => t.id === selectedTrialId) || trials[0];
@@ -181,6 +184,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* Overview + Compare */}
       <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-6">
         {/* LEFT: Run Overview + Compare */}
         <div className="col-span-12 lg:col-span-5 space-y-4">
@@ -191,7 +195,7 @@ export default function App() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2 mb-3">
-                <Select onValueChange={(v) => setSortKey(v as any)} defaultValue="aipi">
+                <Select value={sortKey} onValueChange={(v) => { if (isSortKey(v)) setSortKey(v); }}>
                   <SelectTrigger className="w-[180px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="aipi">AIPI (desc)</SelectItem>
@@ -231,35 +235,6 @@ export default function App() {
             </CardContent>
             <CardFooter className="text-xs text-neutral-500">Budget: ${SAMPLE_RUN.budgetUSD}</CardFooter>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><GitCompare className="h-5 w-5" /> Compare</CardTitle>
-              <CardDescription>Select up to 3 trials to compare side-by-side.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {compare.length === 0 && <div className="text-sm text-neutral-500">No trials selected.</div>}
-              {compare.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {compare.map((id) => {
-                    const t = trials.find((x) => x.id === id)!;
-                    return (
-                      <Card key={id} className="border-neutral-200">
-                        <CardHeader>
-                          <CardTitle className="text-base">{t.model} <Badge variant="outline" className="ml-2">{t.agent}</Badge></CardTitle>
-                          <CardDescription>AIPI {t.aipi} • ${t.cost.toFixed(2)} • {t.latencyMs}ms</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-xs text-neutral-500 mb-2">Top artifact</div>
-                          <div className="p-3 rounded-lg bg-neutral-100 text-sm">{t.artifacts[0].content}</div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* RIGHT: Trial Detail */}
@@ -286,83 +261,10 @@ export default function App() {
                   </div>
                   <div className="mt-3 text-xs text-neutral-500 mb-1">Risks</div>
                   <div className="flex gap-2 flex-wrap">
-                    {selectedTrial.risks.length ? selectedTrial.risks.map(riskBadge) : (
+                    {selectedTrial.risks.length ? selectedTrial.risks.map((r) => <span key={r}>{riskBadge(r)}</span>) : (
                       <Badge variant="secondary" className="bg-emerald-100 text-emerald-900 border border-emerald-200"><ShieldCheck className="h-3 w-3 mr-1" /> None</Badge>
                     )}
                   </div>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div>
-                <div className="text-xs text-neutral-500 mb-2">Artifacts</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {selectedTrial.artifacts.map((a, i) => (
-                    <Card key={i}>
-                      <CardHeader>
-                        <CardTitle className="text-sm">{a.label}</CardTitle>
-                        <CardDescription>{a.type.toUpperCase()}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="p-3 rounded-lg bg-neutral-100 text-sm leading-relaxed">{a.content}</div>
-                      </CardContent>
-                      <CardFooter className="justify-end gap-2">
-                        <Button size="sm" variant="outline"><Copy className="h-4 w-4 mr-1" /> Copy</Button>
-                        <Button size="sm" variant="outline"><Wand2 className="h-4 w-4 mr-1" /> Refine</Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="grid grid-cols-12 gap-4">
-                <div className="col-span-12 lg:col-span-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Scorecard (Human)</CardTitle>
-                      <CardDescription>1–5 per metric</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {(Object.keys(DEFAULT_WEIGHTS) as MetricKey[]).map((k) => (
-                        <div key={k} className="flex items-center justify-between gap-3">
-                          <div className="text-sm w-40">{RUBRIC_LABEL[k]}</div>
-                          <div className="font-mono">{selectedTrial.human[k]}</div>
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <Button key={n} size="icon" variant={selectedTrial.human[k] === n ? "default" : "outline"} className="h-7 w-7" onClick={() => { /* no-op in mock */ }}>
-                                {n}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </CardContent>
-                    <CardFooter className="justify-between">
-                      <div className="text-sm">Composite AIPI</div>
-                      <div className="font-semibold">{computeAIPI(weights, selectedTrial.human)}</div>
-                    </CardFooter>
-                  </Card>
-                </div>
-                <div className="col-span-12 lg:col-span-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Decision & Rationale</CardTitle>
-                      <CardDescription>Record the outcome of this trial.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> Strengths: brand voice, inclusive language, clear CTA.</div>
-                        <div className="flex items-center gap-2"><XCircle className="h-4 w-4 text-rose-600" /> Weaknesses: originality moderate; try exploratory prompt v2.</div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="justify-end gap-2">
-                      <Button variant="outline">Save Notes</Button>
-                      <Button>Mark as Winner</Button>
-                    </CardFooter>
-                  </Card>
                 </div>
               </div>
             </CardContent>
@@ -378,7 +280,7 @@ export default function App() {
 // --------- Small UI helpers ----------
 function WeightsDialog({
   weights, setWeights,
-}: { weights: Record<MetricKey, number>; setWeights: (fn: (w: Record<MetricKey, number>) => Record<MetricKey, number>) => void; }) {
+}: { weights: Record<MetricKey, number>; setWeights: React.Dispatch<React.SetStateAction<Record<MetricKey, number>>> }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
