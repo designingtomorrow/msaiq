@@ -1,8 +1,9 @@
 "use client";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-export default function Login() {
+function LoginInner() {
   const [code, setCode] = useState("");
   const sp = useSearchParams();
   const error = sp.get("error");
@@ -31,5 +32,13 @@ export default function Login() {
         Continue
       </button>
     </form>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={<div style={{maxWidth:420,margin:"10vh auto",fontFamily:"system-ui"}}>Loading…</div>}>
+      <LoginInner />
+    </Suspense>
   );
 }
