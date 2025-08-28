@@ -23,6 +23,15 @@ import {
   Wand2, CheckCircle2, XCircle, Rocket,
 } from "lucide-react";
 
+import Image from "next/image";
+
+import {
+  Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
+  ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
+  Wand2, CheckCircle2, XCircle, Rocket,
+} from "lucide-react";
+import Image from "next/image";  // ← add this line
+
 /* -------------------- FULL DATA & TYPES -------------------- */
 const DEFAULT_WEIGHTS = {
   fit: 0.15,
@@ -231,7 +240,13 @@ function handlePrintReport() {
       {/* Top Bar */}
      <div className="sticky top-0 z-40 bg-white border-b print-hidden">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <SquareGanttChart className="h-5 w-5" />
+          <Image
+            src="/logo.svg"
+            alt="msaiq logo"
+            width={24}
+            height={21}
+            className="h-6 w-6"
+          />
           <div className="font-semibold tracking-tight">msaiq • Console (POC)</div>
           <Badge variant="outline" className="ml-2">Run: {SAMPLE_RUN.title}</Badge>
           <div className="ml-auto flex items-center gap-2">
