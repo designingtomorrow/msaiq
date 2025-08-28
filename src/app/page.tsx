@@ -219,8 +219,8 @@ export default function App() {
           <Badge variant="outline" className="ml-2">Run: {SAMPLE_RUN.title}</Badge>
           <div className="ml-auto flex items-center gap-2">
             <WeightsDialog weights={weights} setWeights={setWeights} />
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-1" /> Export Pack
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Download className="h-4 w-4 mr-1" /> Print Report
             </Button>
             <Button size="sm" className="bg-black text-white">
               <Rocket className="h-4 w-4 mr-1" /> New Run
