@@ -3,461 +3,589 @@ export const dynamic = "force-dynamic";
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import {
+  Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 import {
-  Download,
-  Filter,
-  Plus,
-  Settings2,
-  AlertTriangle,
-  Copy,
-  Eye,
-  GitCompare,
-  ChevronRight,
+  Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
+  ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
+  Wand2, CheckCircle2, XCircle, Rocket,
 } from "lucide-react";
 
-type Trial = {
-  id: number;
-  model: string;
-  kind: "Copy" | "Design" | "Code";
-  risk?: "Tone" | "Facts";
-  aipi: number;          // msaiq impact index (fake)
-  cost: number;          // $
-  latency: number;       // ms
-  prompt: string;
-  artifacts: { label: string; content: string }[];
-  metrics: { label: string; value: number }[]; // auto-metrics
+/* -------------------- FULL DATA & TYPES -------------------- */
+const DEFAULT_WEIGHTS = {
+  fit: 0.15,
+  clarity: 0.10,
+  originality: 0.15,
+  feasibility: 0.10,
+  safety: 0.10,
+  factuality: 0.10,
+  ux: 0.10,
+  brand: 0.10,
+  inclusion: 0.10,
+};
+type MetricKey = keyof typeof DEFAULT_WEIGHTS;
+
+const RUBRIC_LABEL: Record<MetricKey, string> = {
+  fit: "Fit-to-Brief",
+  clarity: "Clarity & Structure",
+  originality: "Originality",
+  feasibility: "Feasibility",
+  safety: "Safety & Policy",
+  factuality: "Factuality",
+  ux: "UX Heuristics",
+  brand: "Brand Tone Match",
+  inclusion: "Inclusion & Accessibility",
 };
 
-const TRIALS: Trial[] = [
-  {
-    id: 1,
-    model: "Claude 3.7",
-    kind: "Copy",
-    aipi: 95,
-    cost: 2.02,
-    latency: 2100,
-    prompt: "Write 3 hero options with CTA variants for Fall promo…",
-    artifacts: [
-      { label: "Option A", content: "Fall starts here. New textures. Warmer layers. Shop now →" },
-      { label: "Option B", content: "Layer up for the season. Cozy meets clean design. Explore →" },
-      { label: "Option C", content: "Turn down the heat, turn up the style. See the edit →" },
-    ],
-    metrics: [
-      { label: "Readability", value: 63 },
-      { label: "Brand KW", value: 78 },
-      { label: "Inclusion", value: 80 },
-    ],
-  },
-  {
-    id: 2,
-    model: "GPT-4.1",
-    kind: "Copy",
-    risk: "Tone",
-    aipi: 81,
-    cost: 2.31,
-    latency: 1830,
-    prompt: "Write 3 hero options with CTA variants for Fall promo…",
-    artifacts: [
-      { label: "Option A", content: "Fall starts here. New textures. Warmer layers. Shop now →" },
-      { label: "Option B", content: "Hello, sweater weather. Explore cozy fits →" },
-      { label: "Option C", content: "Turn down the heat, turn up the style. See the edit →" },
-    ],
-    metrics: [
-      { label: "Readability", value: 61 },
-      { label: "Brand KW", value: 74 },
-      { label: "Inclusion", value: 78 },
-    ],
-  },
-  {
-    id: 3,
-    model: "Gemini 2.0",
-    kind: "Copy",
-    risk: "Facts",
-    aipi: 70,
-    cost: 1.74,
-    latency: 1570,
-    prompt: "Write 3 hero options with CTA variants for Fall promo…",
-    artifacts: [
-      { label: "Option A", content: "Bring on the breeze. Lighter knits that move →" },
-      { label: "Option B", content: "Color that carries. Rich hues, easy layers →" },
-      { label: "Option C", content: "Made to repeat. Washable, wearable, wonderful →" },
-    ],
-    metrics: [
-      { label: "Readability", value: 58 },
-      { label: "Brand KW", value: 69 },
-      { label: "Inclusion", value: 74 },
-    ],
-  },
-];
+type Trial = {
+  id: string;
+  model: string;
+  agent: string;
+  cost: number;
+  latencyMs: number;
+  risks: string[];
+  auto: { readability: number; brandKeywords: number; inclusion: number };
+  human: Record<MetricKey, number>;
+  prompt: string;
+  baselineDiff: string;
+  artifacts: { type: "copy" | "image"; label: string; content: string }[];
+};
 
-const HUMAN_METRICS = [
-  "Fit-to-Brief",
-  "Clarity & Structure",
-  "Originality",
-  "Brand Voice",
-];
+const SAMPLE_RUN = {
+  id: "run_001",
+  title: "Email Hero Concepts — Fall Promo",
+  intent:
+    "Generate 3 hero concepts for the Fall campaign with strong brand tone and accessible CTAs.",
+  budgetUSD: 500,
+  trials: [
+    {
+      id: "t1",
+      model: "GPT-4.1",
+      agent: "Copy",
+      cost: 2.31,
+      latencyMs: 1830,
+      risks: ["minor_tone_off"],
+      auto: { readability: 63, brandKeywords: 0.78, inclusion: 0.8 },
+      human: {
+        fit: 4, clarity: 4, originality: 3, feasibility: 5, safety: 5,
+        factuality: 4, ux: 4, brand: 4, inclusion: 4,
+      },
+      prompt: "Write 3 hero options with CTA variants for Fall promo…",
+      baselineDiff: "+ tightened CTA, added accessibility note",
+      artifacts: [
+        { type: "copy", label: "Option A", content: "Fall starts here. New textures. Warmer layers. Shop now →" },
+        { type: "copy", label: "Option B", content: "Hello, sweater weather. Cozy meets clean design. Explore →" },
+        { type: "copy", label: "Option C", content: "Turn down the heat, turn up the style. See the edit →" },
+      ],
+    },
+    {
+      id: "t2",
+      model: "Claude 3.7",
+      agent: "Copy",
+      cost: 2.02,
+      latencyMs: 2100,
+      risks: [],
+      auto: { readability: 71, brandKeywords: 0.81, inclusion: 0.86 },
+      human: {
+        fit: 5, clarity: 5, originality: 4, feasibility: 5, safety: 5,
+        factuality: 5, ux: 4, brand: 5, inclusion: 5,
+      },
+      prompt:
+        "Emphasize sustainable materials & inclusive tone; 3 hero options with variant CTAs…",
+      baselineDiff: "+ added inclusive language, restrained adjectives",
+      artifacts: [
+        { type: "copy", label: "Option A", content: "Made for many. Softer knits, lighter impact. Shop the Fall drop →" },
+        { type: "copy", label: "Option B", content: "Layers for real life. Easy care, easy wear. Discover now →" },
+        { type: "copy", label: "Option C", content: "Style that shows up—for everyone. Browse the collection →" },
+      ],
+    },
+    {
+      id: "t3",
+      model: "Gemini 2.0",
+      agent: "Copy",
+      cost: 1.74,
+      latencyMs: 1570,
+      risks: ["hallucination_low"],
+      auto: { readability: 58, brandKeywords: 0.69, inclusion: 0.72 },
+      human: {
+        fit: 3, clarity: 3, originality: 5, feasibility: 4, safety: 4,
+        factuality: 3, ux: 3, brand: 3, inclusion: 3,
+      },
+      prompt:
+        "Punchy, high-contrast, minimal words, bold CTA. No sustainability claims.",
+      baselineDiff: "– removed sustainability claim (no source)",
+      artifacts: [
+        { type: "copy", label: "Option A", content: "Fall. Done. Shop →" },
+        { type: "copy", label: "Option B", content: "Layer up. Check out →" },
+        { type: "copy", label: "Option C", content: "Warm looks. Cold days. Go →" },
+      ],
+    },
+  ] as Trial[],
+};
 
-function MetricPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
+/* -------------------- HELPERS -------------------- */
+function computeAIPI(
+  weights: Record<MetricKey, number>,
+  human: Record<MetricKey, number>
+) {
+  let total = 0;
+  (Object.keys(weights) as MetricKey[]).forEach((k) => {
+    total += weights[k] * ((human[k] ?? 0) / 5);
+  });
+  return +(total * 100).toFixed(1);
 }
 
-function RiskBadge({ risk }: { risk?: "Tone" | "Facts" }) {
-  if (!risk) return null;
-  return (
-    <Badge variant="secondary" className="gap-1">
-      <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
-      {risk}
-    </Badge>
-  );
+function riskBadge(key: string) {
+  if (key === "minor_tone_off")
+    return (
+      <Badge
+        key={key}
+        variant="secondary"
+        className="bg-amber-100 text-amber-900 border border-amber-200"
+      >
+        <AlertTriangle className="mr-1 h-3 w-3" /> Tone
+      </Badge>
+    );
+  if (key === "hallucination_low")
+    return (
+      <Badge
+        key={key}
+        variant="secondary"
+        className="bg-rose-100 text-rose-900 border border-rose-200"
+      >
+        <AlertTriangle className="mr-1 h-3 w-3" /> Facts
+      </Badge>
+    );
+  return <Badge key={key}>Risk</Badge>;
 }
 
-export default function ConsolePage() {
-  const [selectedId, setSelectedId] = useState<number>(2);
-  const [compareIds, setCompareIds] = useState<number[]>([]);
-  const [search, setSearch] = useState("");
+/* -------------------- SORT TYPES -------------------- */
+const SORT_OPTIONS = ["aipi", "cost", "latency"] as const;
+type SortKey = (typeof SORT_OPTIONS)[number];
+function isSortKey(v: string): v is SortKey {
+  return (SORT_OPTIONS as readonly string[]).includes(v);
+}
 
-  const selected = useMemo(
-    () => TRIALS.find((t) => t.id === selectedId) ?? TRIALS[0],
-    [selectedId]
+/* -------------------- PAGE -------------------- */
+export default function App() {
+  const [weights, setWeights] = useState(DEFAULT_WEIGHTS);
+  const [sortKey, setSortKey] = useState<SortKey>("aipi");
+  const [selectedTrialId, setSelectedTrialId] = useState<string | null>(
+    SAMPLE_RUN.trials[0].id
   );
+  const [compare, setCompare] = useState<string[]>([]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return TRIALS;
-    return TRIALS.filter((t) => t.model.toLowerCase().includes(q));
-  }, [search]);
+  const trials = useMemo(() => {
+    return SAMPLE_RUN.trials
+      .map((t) => ({ ...t, aipi: computeAIPI(weights, t.human) }))
+      .sort((a, b) =>
+        sortKey === "aipi"
+          ? b.aipi - a.aipi
+          : sortKey === "cost"
+          ? a.cost - b.cost
+          : a.latencyMs - b.latencyMs
+      );
+  }, [weights, sortKey]);
 
-  function toggleCompare(id: number) {
-    setCompareIds((prev) =>
+  const selectedTrial = trials.find((t) => t.id === selectedTrialId) || trials[0];
+
+  function toggleCompare(id: string) {
+    setCompare((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
-        : prev.length < 3
-        ? [...prev, id]
-        : prev
+        : [...prev, id].slice(-3)
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
-      <div className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="h-7 w-7 rounded-md bg-black text-white grid place-items-center font-semibold">
-              m
-            </div>
-            <div className="text-sm text-muted-foreground">msaiq • Console (POC)</div>
-            <div className="hidden md:block">
-              <Select defaultValue="run1">
-                <SelectTrigger className="h-8 w-[320px]">
-                  <SelectValue placeholder="Select run…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="run1">Run: Email Hero Concepts — Fall Promo</SelectItem>
-                  <SelectItem value="run2">Run: Product Card Variants — New In</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1">
-              <Settings2 className="h-4 w-4" />
-              Weights
+    <div className="min-h-screen bg-neutral-50">
+      {/* Top Bar */}
+      <div className="sticky top-0 z-40 bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          <SquareGanttChart className="h-5 w-5" />
+          <div className="font-semibold tracking-tight">msaiq • Console (POC)</div>
+          <Badge variant="outline" className="ml-2">Run: {SAMPLE_RUN.title}</Badge>
+          <div className="ml-auto flex items-center gap-2">
+            <WeightsDialog weights={weights} setWeights={setWeights} />
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-1" /> Export Pack
             </Button>
-            <Button variant="outline" size="sm" className="gap-1">
-              <Download className="h-4 w-4" />
-              Export Pack
-            </Button>
-            <Button size="sm" className="gap-1">
-              <Plus className="h-4 w-4" />
-              New Run
+            <Button size="sm" className="bg-black text-white">
+              <Rocket className="h-4 w-4 mr-1" /> New Run
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 py-6 md:grid-cols-[420px_1fr]">
-        {/* Left: Run Overview */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <span className="rounded-full border p-1">⟳</span> Run Overview
-            </CardTitle>
-            <CardDescription>
-              Generate 3 hero concepts for the Fall campaign with strong brand tone and accessible CTAs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Select defaultValue="aipi-desc">
-                <SelectTrigger className="h-8 w-[160px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aipi-desc">AIPI (desc)</SelectItem>
-                  <SelectItem value="lat-asc">Latency (asc)</SelectItem>
-                  <SelectItem value="cost-asc">Cost (asc)</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" className="gap-1">
-                <Filter className="h-4 w-4" />
-                Filters
-              </Button>
-              <div className="ml-auto w-40">
-                <Input
-                  className="h-8"
-                  placeholder="Search models…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+      <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-6">
+        {/* LEFT: Run Overview */}
+        <div className="col-span-12 lg:col-span-5 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gauge className="h-5 w-5" /> Run Overview
+              </CardTitle>
+              <CardDescription>{SAMPLE_RUN.intent}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 mb-3">
+                <Select
+                  value={sortKey}
+                  onValueChange={(v) => {
+                    if (isSortKey(v)) setSortKey(v);
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aipi">AIPI (desc)</SelectItem>
+                    <SelectItem value="cost">Cost (asc)</SelectItem>
+                    <SelectItem value="latency">Latency (asc)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm">
+                  <ListFilter className="h-4 w-4 mr-1" /> Filters
+                </Button>
               </div>
-            </div>
 
-            <ScrollArea className="h-[420px] rounded-md border">
-              <div className="divide-y">
-                {filtered.map((t, idx) => (
+              <div className="space-y-2">
+                {trials.map((t, idx) => (
                   <div
                     key={t.id}
-                    className={`grid grid-cols-[40px_1fr_auto] items-center gap-2 px-3 py-3 ${
-                      t.id === selectedId ? "bg-muted/60" : "bg-transparent"
+                    className={`grid grid-cols-12 items-center gap-2 p-2 rounded-xl border ${
+                      selectedTrial?.id === t.id ? "bg-neutral-100" : "bg-white"
                     }`}
                   >
-                    <div className="text-sm text-muted-foreground">#{idx + 1}</div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <div className="font-medium">{t.model}</div>
-                        <Badge variant="secondary">{t.kind}</Badge>
-                        <RiskBadge risk={t.risk} />
+                    <div className="col-span-1 text-sm text-neutral-500">
+                      #{idx + 1}
+                    </div>
+                    <div className="col-span-5">
+                      <div className="font-medium">
+                        {t.model}{" "}
+                        <Badge variant="outline" className="ml-2">
+                          {t.agent}
+                        </Badge>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                        <div>Cost <span className="font-medium">${t.cost.toFixed(2)}</span></div>
-                        <div>Latency <span className="font-medium">{t.latency}ms</span></div>
-                        <div>AIPI <span className="font-medium">{t.aipi}</span></div>
+                      <div className="flex gap-1 mt-1">
+                        {t.risks.map((r) => (
+                          <span key={r}>{riskBadge(r)}</span>
+                        ))}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs text-neutral-500">Cost</div>
+                      <div className="font-mono">${t.cost.toFixed(2)}</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs text-neutral-500">Latency</div>
+                      <div className="font-mono">{t.latencyMs}ms</div>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <div className="text-xs text-neutral-500">AIPI</div>
+                      <div className="font-semibold">{t.aipi}</div>
+                    </div>
+                    <div className="col-span-12 flex gap-2 justify-end">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1"
-                        onClick={() => setSelectedId(t.id)}
+                        onClick={() => setSelectedTrialId(t.id)}
                       >
-                        <Eye className="h-4 w-4" />
-                        View
+                        <Eye className="h-4 w-4 mr-1" /> View
                       </Button>
                       <Button
-                        variant={compareIds.includes(t.id) ? "default" : "outline"}
+                        variant={compare.includes(t.id) ? "default" : "outline"}
                         size="sm"
-                        className="gap-1"
                         onClick={() => toggleCompare(t.id)}
                       >
-                        <GitCompare className="h-4 w-4" />
-                        Compare
+                        <GitCompare className="h-4 w-4 mr-1" />{" "}
+                        {compare.includes(t.id) ? "Selected" : "Compare"}
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            <div className="rounded-md border p-3">
-              <div className="mb-2 text-sm font-medium">Compare</div>
-              {compareIds.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  Select up to 3 trials to compare side-by-side.
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {compareIds.map((id) => {
-                    const t = TRIALS.find((x) => x.id === id)!;
-                    return <Badge key={id} variant="outline">{t.model}</Badge>;
-                  })}
-                  <Button size="sm" className="ml-auto gap-1">
-                    <GitCompare className="h-4 w-4" />
-                    Open Compare
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs text-muted-foreground">Budget: $500</div>
-          </CardContent>
-        </Card>
-
-        {/* Right: Trial Detail + Scoring */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between">
-                <span>Trial Detail</span>
-                <div className="text-sm text-muted-foreground">{selected.model} • {selected.kind}</div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-[1fr_280px]">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Prompt</Label>
-                  <div className="mt-1 rounded-md border bg-muted/30 p-3 text-sm">
-                    {selected.prompt}
-                  </div>
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
-                    <span className="font-medium">+ tightened CTA, added accessibility note</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Auto-metrics</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {selected.metrics.map((m) => (
-                      <MetricPill key={m.label} label={m.label} value={m.value} />
-                    ))}
-                  </div>
-                  <Label className="mt-3 text-xs text-muted-foreground">Risks</Label>
-                  <div>{selected.risk ? <RiskBadge risk={selected.risk} /> : <span className="text-sm text-muted-foreground">None</span>}</div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Artifacts */}
-              <div className="grid gap-4 md:grid-cols-3">
-                {selected.artifacts.map((a, i) => (
-                  <Card key={i} className="border bg-card/60">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">{a.label}</CardTitle>
-                      <CardDescription className="uppercase text-[10px]">COPY</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
-                        {a.content}
-                      </div>
-                    </CardContent>
-                    <CardFooter className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => navigator.clipboard?.writeText(a.content)}
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </Button>
-                      <Button variant="outline" size="sm" className="gap-1">
-                        <ChevronRight className="h-4 w-4" />
-                        Refine
-                      </Button>
-                    </CardFooter>
-                  </Card>
                 ))}
               </div>
             </CardContent>
+            <CardFooter className="text-xs text-neutral-500">
+              Budget: ${SAMPLE_RUN.budgetUSD}
+            </CardFooter>
           </Card>
 
-          {/* Scorecard & Decision */}
-          <div className="grid gap-6 md:grid-cols-[1fr_320px]">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle>Scorecard (Human)</CardTitle>
-                <CardDescription>1–5 per metric</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {HUMAN_METRICS.map((label) => (
-                  <ScoreRow key={label} label={label} />
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle>Decision & Rationale</CardTitle>
-                <CardDescription>Record the outcome of this trial.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm">
-                  <div className="mb-2 font-medium text-green-600">Strengths</div>
-                  <ul className="list-disc pl-4 text-muted-foreground">
-                    <li>Brand voice strong; inclusive language.</li>
-                    <li>Clear calls-to-action with variants.</li>
-                  </ul>
+          {/* Compare Panel */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitCompare className="h-5 w-5" /> Compare
+              </CardTitle>
+              <CardDescription>
+                Select up to 3 trials to compare side-by-side.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {compare.length === 0 && (
+                <div className="text-sm text-neutral-500">No trials selected.</div>
+              )}
+              {compare.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {compare.map((id) => {
+                    const t = trials.find((x) => x.id === id)!;
+                    return (
+                      <Card key={id} className="border-neutral-200">
+                        <CardHeader>
+                          <CardTitle className="text-base">
+                            {t.model}{" "}
+                            <Badge variant="outline" className="ml-2">
+                              {t.agent}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription>
+                            AIPI {t.aipi} • ${t.cost.toFixed(2)} • {t.latencyMs}
+                            ms
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xs text-neutral-500 mb-2">
+                            Top artifact
+                          </div>
+                          <div className="p-3 rounded-lg bg-neutral-100 text-sm">
+                            {t.artifacts[0].content}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
-                <div className="text-sm">
-                  <div className="mb-2 font-medium text-rose-600">Weaknesses</div>
-                  <ul className="list-disc pl-4 text-muted-foreground">
-                    <li>Originality moderate; consider exploratory prompt v2.</li>
-                  </ul>
-                </div>
-                <Separator />
-                <Tabs defaultValue="approve">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="approve">Approve</TabsTrigger>
-                    <TabsTrigger value="revise">Request Revisions</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="approve" className="mt-3">
-                    <Button className="w-full">Approve & Export</Button>
-                  </TabsContent>
-                  <TabsContent value="revise" className="mt-3 space-y-2">
-                    <Label className="text-xs">Revision notes</Label>
-                    <Input placeholder="Tell the model what to improve…" />
-                    <Button variant="outline" className="w-full">Create Follow-up Run</Button>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="pb-8 text-center text-xs text-muted-foreground">
-            msaiq POC • Run → Trial → Artifact → Scorecard • v0.2
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
+
+        {/* RIGHT: Trial Detail */}
+        <div className="col-span-12 lg:col-span-7 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Workflow className="h-5 w-5" /> Trial Detail
+              </CardTitle>
+              <CardDescription>
+                {selectedTrial.model} • {selectedTrial.agent}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-12 lg:col-span-6">
+                  <div className="text-xs text-neutral-500">Prompt</div>
+                  <div className="p-3 rounded-lg bg-neutral-100 text-sm mb-2">
+                    {selectedTrial.prompt}
+                  </div>
+                  <div className="text-xs text-neutral-500">Prompt diff vs baseline</div>
+                  <div className="p-3 rounded-lg bg-amber-50 text-sm border border-amber-200">
+                    {selectedTrial.baselineDiff}
+                  </div>
+                </div>
+                <div className="col-span-12 lg:col-span-6">
+                  <div className="text-xs text-neutral-500 mb-1">Auto-metrics</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <MetricChip label="Readability" value={`${selectedTrial.auto.readability}`} />
+                    <MetricChip label="Brand KW" value={`${Math.round(selectedTrial.auto.brandKeywords * 100)}%`} />
+                    <MetricChip label="Inclusion" value={`${Math.round(selectedTrial.auto.inclusion * 100)}%`} />
+                  </div>
+                  <div className="mt-3 text-xs text-neutral-500 mb-1">Risks</div>
+                  <div className="flex gap-2 flex-wrap">
+                    {selectedTrial.risks.length ? (
+                      selectedTrial.risks.map((r) => <span key={r}>{riskBadge(r)}</span>)
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className="bg-emerald-100 text-emerald-900 border border-emerald-200"
+                      >
+                        <ShieldCheck className="h-3 w-3 mr-1" /> None
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Artifacts */}
+              <div>
+                <div className="text-xs text-neutral-500 mb-2">Artifacts</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {selectedTrial.artifacts.map((a, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <CardTitle className="text-sm">{a.label}</CardTitle>
+                        <CardDescription>{a.type.toUpperCase()}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="p-3 rounded-lg bg-neutral-100 text-sm leading-relaxed">
+                          {a.content}
+                        </div>
+                      </CardContent>
+                      <CardFooter className="justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigator.clipboard.writeText(a.content)}
+                        >
+                          <Copy className="h-4 w-4 mr-1" /> Copy
+                        </Button>
+                        <Button size="sm" variant="outline">
+                          <Wand2 className="h-4 w-4 mr-1" /> Refine
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Scorecard + Decision */}
+              <div className="grid grid-cols-12 gap-4">
+                <div className="col-span-12 lg:col-span-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Scorecard (Human)</CardTitle>
+                      <CardDescription>1–5 per metric</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {(Object.keys(DEFAULT_WEIGHTS) as MetricKey[]).map((k) => (
+                        <div
+                          key={k}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <div className="text-sm w-40">{RUBRIC_LABEL[k]}</div>
+                          <div className="font-mono">{selectedTrial.human[k]}</div>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Button
+                                key={n}
+                                size="icon"
+                                variant={
+                                  selectedTrial.human[k] === n ? "default" : "outline"
+                                }
+                                className="h-7 w-7"
+                              >
+                                {n}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                    <CardFooter className="justify-between">
+                      <div className="text-sm">Composite AIPI</div>
+                      <div className="font-semibold">
+                        {computeAIPI(weights, selectedTrial.human)}
+                      </div>
+                    </CardFooter>
+                  </Card>
+                </div>
+                <div className="col-span-12 lg:col-span-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Decision & Rationale</CardTitle>
+                      <CardDescription>Record the outcome of this trial.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Strengths:
+                          brand voice, inclusive language, clear CTA.
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <XCircle className="h-4 w-4 text-rose-600" /> Weaknesses:
+                          originality moderate; try exploratory prompt v2.
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="justify-end gap-2">
+                      <Button variant="outline">Save Notes</Button>
+                      <Button>Mark as Winner</Button>
+                    </CardFooter>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="py-8 text-center text-xs text-neutral-500">
+        msaiq POC • Run → Trial → Artifact → Scorecard • v0.2
       </div>
     </div>
   );
 }
 
-/** Small component for 1–5 scoring row */
-function ScoreRow({ label }: { label: string }) {
-  const [value, setValue] = useState<number>(4);
+/* -------------------- SMALL UI HELPERS -------------------- */
+function WeightsDialog({
+  weights,
+  setWeights,
+}: {
+  weights: Record<MetricKey, number>;
+  setWeights: React.Dispatch<React.SetStateAction<Record<MetricKey, number>>>;
+}) {
   return (
-    <div className="grid grid-cols-[180px_1fr] items-center gap-3">
-      <div className="text-sm">{label}</div>
-      <div className="flex items-center gap-2">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <Button
-            key={n}
-            variant={value === n ? "default" : "outline"}
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => setValue(n)}
-          >
-            {n}
-          </Button>
-        ))}
-        <div className="ml-3 w-32">
-          <Slider
-            value={[value]}
-            min={1}
-            max={5}
-            step={1}
-            onValueChange={(v) => setValue(v[0])}
-          />
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Settings2 className="h-4 w-4 mr-1" /> Weights
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>Adjust AIPI Weights</DialogTitle>
+          <DialogDescription>
+            Tune the composite to fit project priorities.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5">
+          {(Object.keys(weights) as MetricKey[]).map((k) => (
+            <div key={k} className="grid grid-cols-5 items-center gap-3">
+              <Label className="col-span-2">{RUBRIC_LABEL[k]}</Label>
+              <div className="col-span-3">
+                <Slider
+                  value={[Math.round(weights[k] * 100)]}
+                  onValueChange={(v) =>
+                    setWeights((w) => ({ ...w, [k]: v[0] / 100 }))
+                  }
+                />
+              </div>
+            </div>
+          ))}
+          <div className="text-xs text-neutral-500">
+            Tip: keep sum ≈ 1.0 (current{" "}
+            {Object.values(weights)
+              .reduce((a, b) => a + b, 0)
+              .toFixed(2)}
+            )
+          </div>
         </div>
-      </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MetricChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-2 rounded-lg bg-neutral-100 border text-xs flex items-center justify-between">
+      <span className="text-neutral-600">{label}</span>
+      <span className="font-mono">{value}</span>
     </div>
   );
 }
