@@ -120,3 +120,20 @@
     @apply bg-background text-foreground;
   }
 }
+@media print {
+  /* Hide nav/top bar/buttons when printing */
+  button, nav, form {
+    display: none !important;
+  }
+
+  /* Keep background white for better PDF */
+  body {
+    background: #fff !important;
+  }
+
+  /* Make cards full-width */
+  .card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

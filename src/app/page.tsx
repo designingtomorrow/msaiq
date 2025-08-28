@@ -208,18 +208,35 @@ export default function App() {
         : [...prev, id].slice(-3)
     );
   }
+function handlePrintReport() {
+  const safeTitle = SAMPLE_RUN.title.toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  const oldTitle = document.title;
+  const newTitle = `msaiq-report_${safeTitle}_${new Date()
+    .toISOString()
+    .slice(0, 10)}`;
 
+  const restore = () => {
+    document.title = oldTitle;
+    window.removeEventListener("afterprint", restore);
+  };
+
+  document.title = newTitle;   // browsers use this for PDF filename
+  window.addEventListener("afterprint", restore);
+  window.print();
+}
   return (
     <div className="min-h-screen bg-neutral-50">
       {/* Top Bar */}
-      <div className="sticky top-0 z-40 bg-white border-b">
+     <div className="sticky top-0 z-40 bg-white border-b print-hidden">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
           <SquareGanttChart className="h-5 w-5" />
           <div className="font-semibold tracking-tight">msaiq • Console (POC)</div>
           <Badge variant="outline" className="ml-2">Run: {SAMPLE_RUN.title}</Badge>
           <div className="ml-auto flex items-center gap-2">
             <WeightsDialog weights={weights} setWeights={setWeights} />
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" onClick={handlePrintReport}>
               <Download className="h-4 w-4 mr-1" /> Print Report
             </Button>
             <Button size="sm" className="bg-black text-white">
@@ -525,7 +542,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="py-8 text-center text-xs text-neutral-500">
+      <div className="py-8 text-center text-xs text-neutral-500 print-hidden">
         msaiq POC • Run → Trial → Artifact → Scorecard • v0.2
       </div>
     </div>
