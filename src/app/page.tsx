@@ -2,6 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import React, { useMemo, useState } from "react";
+import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
 import {
   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
@@ -16,21 +18,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-
 import {
-  Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
+  Download, Settings2, Workflow, Gauge, Copy,
   ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
   Wand2, CheckCircle2, XCircle, Rocket,
 } from "lucide-react";
-
-import Image from "next/image";
-
-import {
-  Download, Settings2, SquareGanttChart, Workflow, Gauge, Copy,
-  ListFilter, GitCompare, Eye, ShieldCheck, AlertTriangle,
-  Wand2, CheckCircle2, XCircle, Rocket,
-} from "lucide-react";
-import Image from "next/image";  // ← add this line
 
 /* -------------------- FULL DATA & TYPES -------------------- */
 const DEFAULT_WEIGHTS = {
